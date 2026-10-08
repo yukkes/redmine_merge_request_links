@@ -1,7 +1,8 @@
-require File.expand_path('../../test_helper', __FILE__)
+# frozen_string_literal: true
+
+require File.expand_path('../test_helper', __dir__)
 
 class IssuesControllerTest < Redmine::ControllerTest
-
   fixtures :projects,
            :users,
            :roles,
@@ -42,6 +43,23 @@ class IssuesControllerTest < Redmine::ControllerTest
     assert_select "#merge-request-#{merge_request.id}"
   end
 
+  def test_does_not_link_merge_request_url_without_web_scheme
+    merge_request = MergeRequest.create!(title: 'Some merge request', url: 'javascript:alert(1)')
+    merge_request.issues << issue
+
+    sign_in(user_with_permission)
+    get(
+      :show,
+      params: {
+        id: issue.id
+      }
+    )
+
+    assert_response :success
+    assert_select "#merge-request-#{merge_request.id}", text: /Some merge request/
+    assert_select 'a[href^="javascript"]', count: 0
+  end
+
   def test_requires_merge_request_links_module_to_be_enabled
     issue.project.enabled_module_names -= ['merge_request_links']
     merge_request = MergeRequest.create!(title: 'Some merge request')
@@ -49,7 +67,7 @@ class IssuesControllerTest < Redmine::ControllerTest
 
     sign_in(user_with_permission)
     get(
-      :show, 
+      :show,
       params: {
         id: issue.id
       }
@@ -65,7 +83,7 @@ class IssuesControllerTest < Redmine::ControllerTest
 
     sign_in(user_without_permission)
     get(
-      :show, 
+      :show,
       params: {
         id: issue.id
       }
@@ -82,11 +100,11 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_with_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :set_filter => 1,
-        :f => ['merge_request'],
-        :op => {
+      params: {
+        project_id: issue.project_id,
+        set_filter: 1,
+        f: ['merge_request'],
+        op: {
           'merge_request' => '*'
         }
       }
@@ -103,11 +121,11 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_with_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :set_filter => 1,
-        :f => ['merge_request'],
-        :op => {
+      params: {
+        project_id: issue.project_id,
+        set_filter: 1,
+        f: ['merge_request'],
+        op: {
           'merge_request' => '!*'
         }
       }
@@ -124,14 +142,14 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_with_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :set_filter => 1,
-        :f => ['merge_request'],
-        :op => {
+      params: {
+        project_id: issue.project_id,
+        set_filter: 1,
+        f: ['merge_request'],
+        op: {
           'merge_request' => '='
         },
-        :v => {
+        v: {
           'merge_request' => ['open']
         }
       }
@@ -148,14 +166,14 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_with_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :set_filter => 1,
-        :f => ['merge_request'],
-        :op => {
+      params: {
+        project_id: issue.project_id,
+        set_filter: 1,
+        f: ['merge_request'],
+        op: {
           'merge_request' => '='
         },
-        :v => {
+        v: {
           'merge_request' => ['merged']
         }
       }
@@ -172,20 +190,20 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_with_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :set_filter => 1,
-        :f => ['merge_request'],
-        :op => {
+      params: {
+        project_id: issue.project_id,
+        set_filter: 1,
+        f: ['merge_request'],
+        op: {
           'merge_request' => '*'
         },
-        :c => ['merge_requests']
+        c: ['merge_requests']
       }
     )
 
     assert_response :success
-    assert_includes columns_in_issues_list, "Merge requests"
-    assert_match "mr_id", css_select("td.merge_requests").first.text
+    assert_includes columns_in_issues_list, 'Merge requests'
+    assert_match 'mr_id', css_select('td.merge_requests').first.text
   end
 
   def test_merge_request_filter_no_permission
@@ -195,11 +213,11 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_without_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :set_filter => 1,
-        :f => ['merge_request'],
-        :op => {
+      params: {
+        project_id: issue.project_id,
+        set_filter: 1,
+        f: ['merge_request'],
+        op: {
           'merge_request' => '*'
         }
       }
@@ -213,14 +231,14 @@ class IssuesControllerTest < Redmine::ControllerTest
     sign_in(user_without_permission)
     get(
       :index,
-      :params => {
-        :project_id => issue.project_id,
-        :c => ['merge_requests']
+      params: {
+        project_id: issue.project_id,
+        c: ['merge_requests']
       }
     )
 
     assert_response :success
-    assert_not_includes columns_in_issues_list, "Merge requests"
+    assert_not_includes columns_in_issues_list, 'Merge requests'
   end
 
   private

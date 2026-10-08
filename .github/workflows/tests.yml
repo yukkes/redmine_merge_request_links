@@ -1,26 +1,48 @@
 name: tests
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+      - name: Install Ruby linters
+        run: >-
+          gem install --no-document
+          rubocop:1.91.0 rubocop-rails:2.38.0 rubocop-performance:1.27.0
+          brakeman:8.1.0
+      - name: RuboCop
+        run: rubocop
+      - name: Brakeman
+        run: brakeman --force --no-pager --exit-on-warn --exit-on-error .
+
   test:
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        redmine-version:
-          - '3.4'
-          - '4.0'
-          - '5.0'
-
-    env:
-      BUNDLE_GEMFILE: ${{ matrix.gemfile }}
+        include:
+          - redmine-version: '5.1'
+            patch-version: '5.0'
+          - redmine-version: '6.1'
+            patch-version: '6.1'
+          - redmine-version: '7.0'
+            patch-version: '7.0'
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build image
-        run: bin/build --build-arg REDMINE_VERSION=$REDMINE_VERSION --build-arg PATCH_VERSION=$REDMINE_VERSION
+        run: bin/build --build-arg "REDMINE_VERSION=$REDMINE_VERSION" --build-arg "PATCH_VERSION=$PATCH_VERSION"
         env:
           REDMINE_VERSION: ${{ matrix.redmine-version }}
+          PATCH_VERSION: ${{ matrix.patch-version }}
       - name: Run tests
         run: bin/test

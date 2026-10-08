@@ -28,15 +28,15 @@ div#issue-merge-requests {
 }
 
 .merge-request-github {
-  background-image: url("/plugin_assets/redmine_merge_request_links/images/github.svg");
+  background-image: url("../images/github.svg");
 }
 
 .merge-request-gitlab {
-  background-image: url("/plugin_assets/redmine_merge_request_links/images/gitlab.svg");
+  background-image: url("../images/gitlab.svg");
 }
 
 .merge-request-gitea {
-  background-image: url("/plugin_assets/redmine_merge_request_links/images/gitea.svg");
+  background-image: url("../images/gitea.svg");
 }
 
 .merge-request:last-child {

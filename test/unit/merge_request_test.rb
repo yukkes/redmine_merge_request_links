@@ -1,4 +1,6 @@
-require File.expand_path('../../test_helper', __FILE__)
+# frozen_string_literal: true
+
+require File.expand_path('../test_helper', __dir__)
 
 class MergeRequestTest < ActiveSupport::TestCase
   fixtures :issues
@@ -40,7 +42,7 @@ class MergeRequestTest < ActiveSupport::TestCase
 
     merge_request.update!(description: 'Nothing mentioned')
 
-    refute_includes(merge_request.issues, issue)
+    assert_not_includes(merge_request.issues, issue)
   end
 
   def test_ignores_issue_ids_with_project_prefix
@@ -95,6 +97,20 @@ class MergeRequestTest < ActiveSupport::TestCase
     other_merge_request = MergeRequest.create!
 
     assert_includes(MergeRequest.find_all_by_issue(issue), merge_request)
-    refute_includes(MergeRequest.find_all_by_issue(issue), other_merge_request)
+    assert_not_includes(MergeRequest.find_all_by_issue(issue), other_merge_request)
+  end
+
+  def test_web_url_returns_http_and_https_urls
+    assert_equal('https://github.com/a/b/pull/1',
+                 MergeRequest.new(url: 'https://github.com/a/b/pull/1').web_url)
+    assert_equal('http://gitlab.example.com/a/b/-/merge_requests/1',
+                 MergeRequest.new(url: 'http://gitlab.example.com/a/b/-/merge_requests/1').web_url)
+  end
+
+  def test_web_url_ignores_other_schemes_and_invalid_urls
+    assert_nil(MergeRequest.new(url: 'javascript:alert(1)').web_url)
+    assert_nil(MergeRequest.new(url: 'JavaScript:alert(1)').web_url)
+    assert_nil(MergeRequest.new(url: 'http://exa mple.com').web_url)
+    assert_nil(MergeRequest.new(url: nil).web_url)
   end
 end

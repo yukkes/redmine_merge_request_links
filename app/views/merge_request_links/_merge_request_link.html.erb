@@ -5,7 +5,7 @@
   <%= content_tag(:span,
                   merge_request.display_id,
                   class: 'merge-request-id') %>
-  <%= link_to(merge_request.title, merge_request.url) %>
+  <%= link_to_if(merge_request.web_url, merge_request.title, merge_request.web_url) %>
   <span class="merge-request-by-line">
     <%= l(:mrl_label_by) %>
     <%= content_tag(:span,

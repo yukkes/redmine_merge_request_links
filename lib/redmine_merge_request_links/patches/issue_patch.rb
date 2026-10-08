@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module RedmineMergeRequestLinks
   module Patches
     module IssuePatch
@@ -11,5 +13,5 @@ module RedmineMergeRequestLinks
 end
 
 unless Issue.included_modules.include?(RedmineMergeRequestLinks::Patches::IssuePatch)
-  Issue.send(:include, RedmineMergeRequestLinks::Patches::IssuePatch)
+  Issue.include(RedmineMergeRequestLinks::Patches::IssuePatch)
 end

@@ -1,7 +1,8 @@
-require File.expand_path('../../test_helper', __FILE__)
+# frozen_string_literal: true
+
+require File.expand_path('../test_helper', __dir__)
 
 class MergeRequestsControllerTest < Redmine::ControllerTest
-
   TOKEN = 'secret'
   MERGE_REQUEST_URL = 'https://gitlab.example.com/project/merge_requests/1'
 
@@ -38,11 +39,36 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
 
     merge_request = MergeRequest.where(url: MERGE_REQUEST_URL).first
     assert merge_request.present?
-    assert_equal 'opened', merge_request.state
+    assert_equal 'open', merge_request.state
     assert_equal 'Some merge request', merge_request.title
     assert_equal 'group/project!23', merge_request.display_id
     assert_equal '@john', merge_request.author_name
     assert_equal 'gitlab', merge_request.provider
+  end
+
+  def test_maps_locked_gitlab_merge_request_to_open
+    request.headers['X-Gitlab-Event'] = 'Merge Request Hook'
+    request.headers['X-Gitlab-Token'] = 'secret'
+    post(:event,
+         params: {
+           user: {
+             username: 'john'
+           },
+           object_attributes: {
+             url: MERGE_REQUEST_URL,
+             title: 'Some merge request',
+             state: 'locked',
+             iid: 23,
+             target: {
+               path_with_namespace: 'group/project'
+             }
+           }
+         })
+
+    assert_response :success
+
+    merge_request = MergeRequest.where(url: MERGE_REQUEST_URL).first
+    assert_equal 'open', merge_request.state
   end
 
   def test_gitlab_merge_request_event_updates_merge_request
@@ -139,7 +165,7 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
 
     merge_request = MergeRequest.where(url: MERGE_REQUEST_URL).first
     assert merge_request.present?
-    assert_equal 'opened', merge_request.state
+    assert_equal 'open', merge_request.state
     assert_equal 'Some merge request', merge_request.title
     assert_equal 'group/project!23', merge_request.display_id
     assert_equal '@john', merge_request.author_name
@@ -532,17 +558,71 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
     assert_response :bad_request
   end
 
+  def test_responds_with_forbidden_if_gitlab_token_is_not_configured
+    use_handlers_without_tokens
+    request.headers['X-Gitlab-Event'] = 'Merge Request Hook'
+    post(:event,
+         params: {
+           user: { username: 'john' },
+           object_attributes: { url: MERGE_REQUEST_URL, title: 'Some merge request', state: 'opened' }
+         })
+
+    assert_response :forbidden
+    assert_nil MergeRequest.find_by(url: MERGE_REQUEST_URL)
+  end
+
+  def test_responds_with_forbidden_if_github_token_is_not_configured
+    use_handlers_without_tokens
+    payload = { pull_request: { html_url: 'https://github.com/some/pr' } }
+    request.headers['X-GitHub-Event'] = 'pull_request'
+    request.headers['X-Hub-Signature'] = 'sha1=abc'
+    post(:event, params: payload)
+
+    assert_response :forbidden
+  end
+
+  def test_responds_with_forbidden_if_gitea_token_is_not_configured
+    use_handlers_without_tokens
+    payload = { pull_request: { html_url: 'https://gitea.example.com/some/pr' } }
+    request.headers['X-Gitea-Event'] = 'pull_request'
+    request.headers['X-Gitea-Signature'] = 'abc'
+    post(:event, params: payload)
+
+    assert_response :forbidden
+  end
+
+  def test_responds_with_forbidden_if_github_signature_is_missing
+    request.headers['X-GitHub-Event'] = 'pull_request'
+    post(:event, params: { pull_request: { html_url: 'https://github.com/some/pr' } })
+
+    assert_response :forbidden
+  end
+
+  def test_responds_with_forbidden_if_gitea_signature_is_missing
+    request.headers['X-Gitea-Event'] = 'pull_request'
+    post(:event, params: { pull_request: { html_url: 'https://gitea.example.com/some/pr' } })
+
+    assert_response :forbidden
+  end
+
   private
 
+  def use_handlers_without_tokens
+    RedmineMergeRequestLinks.event_handlers = [
+      RedmineMergeRequestLinks::EventHandlers::Gitea.new(token: nil),
+      RedmineMergeRequestLinks::EventHandlers::Github.new(token: nil),
+      RedmineMergeRequestLinks::EventHandlers::Gitlab.new(token: nil)
+    ]
+  end
+
   def hub_signature(payload)
-    'sha1=' + OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha1'),
-                                      TOKEN,
-                                      payload.to_query)
+    digest = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha1'), TOKEN, payload.to_query)
+    "sha1=#{digest}"
   end
 
   def gitea_signature(payload)
     OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
-                                      TOKEN,
-                                      payload.to_query)
+                            TOKEN,
+                            payload.to_query)
   end
 end

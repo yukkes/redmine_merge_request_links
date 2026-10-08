@@ -32,7 +32,7 @@ class IssuesControllerTest < Redmine::ControllerTest
 
     show_issue(user_with_permission)
 
-    assert_select "#history > #issue-merge-requests:first-child #merge-request-#{merge_request.id}"
+    assert_select "#history > #issue-merge-requests:last-child #merge-request-#{merge_request.id}"
     assert_select 'div.issue #issue-merge-requests', count: 0
   end
 

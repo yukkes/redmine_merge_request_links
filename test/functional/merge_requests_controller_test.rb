@@ -4,10 +4,13 @@ require File.expand_path('../test_helper', __dir__)
 
 class MergeRequestsControllerTest < Redmine::ControllerTest
   TOKEN = 'secret'
-  PROVIDERS = %w[github gitlab gitea].freeze
+  PROVIDERS = %w[github gitlab gitea codecommit].freeze
   GITLAB_URL = 'https://gitlab.example.com/project/merge_requests/1'
   GITHUB_URL = 'https://github.com/Codertocat/Hello-World/pull/1'
   GITEA_URL = 'https://gitea.com/Codertocat/Hello-World/pull/1'
+  CODECOMMIT_URL =
+    'https://us-east-1.console.aws.amazon.com/codesuite/codecommit/repositories/my-repo/pull-requests/42'
+  AUTHOR_ARN = 'arn:aws:iam::123456789012:user/john.doe'
 
   fixtures :issues
 
@@ -214,6 +217,95 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
     assert_nil MergeRequest.find_by(url: GITLAB_URL)
   end
 
+  def test_codecommit_pull_request_event_creates_merge_request
+    post_codecommit(codecommit_payload)
+
+    assert_response :success
+    merge_request = MergeRequest.find_by(url: CODECOMMIT_URL)
+    assert_equal 'open', merge_request.state
+    assert_equal 'Fix the bug', merge_request.title
+    assert_equal 'my-repo#42', merge_request.display_id
+    assert_equal '@john.doe', merge_request.author_name
+    assert_equal 'codecommit', merge_request.provider
+  end
+
+  def test_maps_closed_codecommit_pull_request_to_closed
+    post_codecommit(codecommit_payload(detail: { status: 'Closed' }))
+
+    assert_response :success
+    assert_equal 'closed', MergeRequest.find_by(url: CODECOMMIT_URL).state
+  end
+
+  def test_maps_merged_codecommit_pull_request_to_merged
+    post_codecommit(codecommit_payload(detail: { status: 'Closed', merged: 'True' }))
+
+    assert_response :success
+    assert_equal 'merged', MergeRequest.find_by(url: CODECOMMIT_URL).state
+  end
+
+  def test_codecommit_pull_request_event_updates_merge_request
+    merge_request = MergeRequest.create!(url: CODECOMMIT_URL, title: 'Old title', state: 'open')
+
+    post_codecommit(codecommit_payload(title: 'New title', detail: { status: 'Closed', merged: 'True' }))
+
+    assert_response :success
+    merge_request.reload
+    assert_equal 'merged', merge_request.state
+    assert_equal 'New title', merge_request.title
+  end
+
+  def test_does_not_update_codecommit_author_field
+    merge_request = MergeRequest.create!(url: CODECOMMIT_URL,
+                                         title: 'Title',
+                                         state: 'open',
+                                         author_name: '@jack')
+
+    post_codecommit(codecommit_payload(author: 'arn:aws:iam::123456789012:user/jane.doe'))
+
+    assert_response :success
+    assert_equal '@jack', merge_request.reload.author_name
+  end
+
+  def test_associates_issues_mentioned_in_codecommit_pr_title
+    post_codecommit(codecommit_payload(title: "Some title (##{issue.id})"))
+
+    assert_includes MergeRequest.find_by(url: CODECOMMIT_URL).issues, issue
+  end
+
+  def test_associates_issues_mentioned_in_codecommit_pr_description
+    post_codecommit(codecommit_payload(description: "Talks about ##{issue.id}"))
+
+    assert_includes MergeRequest.find_by(url: CODECOMMIT_URL).issues, issue
+  end
+
+  def test_responds_with_forbidden_if_codecommit_token_does_not_match
+    post_codecommit(codecommit_payload, token: 'wrong')
+
+    assert_response :forbidden
+    assert_nil MergeRequest.find_by(url: CODECOMMIT_URL)
+  end
+
+  def test_responds_with_forbidden_if_codecommit_token_is_missing
+    post_codecommit(codecommit_payload, token: nil)
+
+    assert_response :forbidden
+  end
+
+  def test_responds_with_forbidden_if_codecommit_token_is_not_configured
+    ENV.delete(token_variable('codecommit'))
+    post_codecommit(codecommit_payload)
+
+    assert_response :forbidden
+    assert_nil MergeRequest.find_by(url: CODECOMMIT_URL)
+  end
+
+  def test_ignores_codecommit_events_with_other_detail_types
+    post_codecommit(codecommit_payload(overrides: { 'detail-type' => 'CodeCommit Repository State Change' }))
+
+    assert_response :bad_request
+    assert_nil MergeRequest.find_by(url: CODECOMMIT_URL)
+  end
+
   private
 
   def issue
@@ -269,6 +361,36 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
                'X-Gogs-Event' => 'pull_request',
                'X-Gitea-Signature' => signature,
                'X-Gogs-Signature' => signature)
+  end
+
+  def codecommit_payload(title: 'Fix the bug', description: nil, author: AUTHOR_ARN,
+                         detail: {}, overrides: {})
+    detail = {
+      pullRequestId: '42',
+      pullRequestStatus: detail[:status] || 'Open',
+      isMerged: detail[:merged] || 'False',
+      repositoryNames: ['my-repo'],
+      title: title,
+      description: description,
+      author: author,
+      callerUserArn: author
+    }.compact
+
+    {
+      'version' => '0',
+      'id' => '01234567-0123-0123-0123-0123456789ab',
+      'detail-type' => 'CodeCommit Pull Request State Change',
+      'source' => 'aws.codecommit',
+      'account' => '123456789012',
+      'time' => '2024-01-01T00:00:00Z',
+      'region' => 'us-east-1',
+      'resources' => [],
+      'detail' => detail.deep_stringify_keys
+    }.deep_merge(overrides)
+  end
+
+  def post_codecommit(payload, token: TOKEN)
+    post_event(payload, 'X-CodeCommit-Token' => token)
   end
 
   def post_event(payload, headers)

@@ -16,11 +16,20 @@ module RedmineMergeRequestLinks
         signature = request.headers[signature_header]
         return false if token.blank? || signature.blank?
 
-        Rack::Utils.secure_compare(sign.call(token, request.raw_post), signature)
+        secure_compare(sign.call(token, request.raw_post), signature)
       end
 
       def attributes(params)
         parse.call(params).merge(provider: name)
+      end
+
+      private
+
+      # Rack::Utils.secure_compare raises on length mismatch, so pad
+      # both values to the same length first.
+      def secure_compare(expected, actual)
+        length = [expected.bytesize, actual.bytesize].max
+        Rack::Utils.secure_compare(expected.ljust(length, "\0"), actual.ljust(length, "\0"))
       end
     end
 
@@ -28,6 +37,45 @@ module RedmineMergeRequestLinks
     # short-lived "locked" state while merging. Both are stored as the
     # "open" state used by the other providers and the issue filter.
     GITLAB_STATES = { 'opened' => 'open', 'locked' => 'open' }.freeze
+
+    # Maps a CodeCommit pull request event (sent by EventBridge API
+    # destination or relayed by Lambda) to MergeRequest attributes.
+    module CodeCommit
+      module_function
+
+      # EventBridge events contain no URL, so it is derived from region,
+      # repository name and pull request id.
+      def attributes(event)
+        detail = event.require(:detail).permit!.to_h.symbolize_keys
+        repository = detail[:repositoryNames].to_a.first
+        region = event[:region]
+
+        {
+          url: "https://#{region}.console.aws.amazon.com/codesuite/codecommit/repositories/" \
+               "#{repository}/pull-requests/#{detail[:pullRequestId]}",
+          title: detail[:title],
+          description: detail[:description],
+          state: state(detail),
+          author_name: "@#{author(detail)}",
+          display_id: "#{repository}##{detail[:pullRequestId]}"
+        }
+      end
+
+      # `pullRequestStatus` is "Open"/"Closed" and `isMerged` the
+      # strings "True"/"False".
+      def state(detail)
+        return 'merged' if detail[:isMerged] == 'True'
+
+        detail[:pullRequestStatus] == 'Open' ? 'open' : 'closed'
+      end
+
+      # The pull request author's IAM ARN ends with `user/<name>`,
+      # `assumed-role/<role>/<session>` or a similar path. Use its last
+      # segment as display name.
+      def author(detail)
+        detail[:author].to_s.split('/').last
+      end
+    end
 
     # GitHub and Gitea send pull requests in the same format.
     def self.pull_request_attributes(params)
@@ -91,6 +139,18 @@ module RedmineMergeRequestLinks
         signature_header: 'X-Gitlab-Token',
         sign: ->(token, _body) { token },
         parse: method(:merge_request_attributes)
+      ),
+      # Matches both events sent directly by an EventBridge API
+      # destination and events relayed by a Lambda function.
+      Provider.new(
+        name: 'codecommit',
+        event: lambda do |request|
+          request.request_parameters['source'] == 'aws.codecommit' &&
+            request.request_parameters['detail-type'] == 'CodeCommit Pull Request State Change'
+        end,
+        signature_header: 'X-CodeCommit-Token',
+        sign: ->(token, _body) { token },
+        parse: CodeCommit.method(:attributes)
       )
     ].freeze
 

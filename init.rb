@@ -3,7 +3,7 @@
 Redmine::Plugin.register :redmine_merge_request_links do
   name 'Redmine Merge Request Links'
   author 'Tim Fischbach, yukkes'
-  description 'Display links to Gitlab merge requests and GitHub pull requests'
+  description 'Display links to merge requests and pull requests from GitLab, GitHub, Gitea and AWS CodeCommit'
   version '2.2.0'
   url 'https://github.com/yukkes/redmine_merge_request_links'
   author_url 'https://github.com/yukkes'

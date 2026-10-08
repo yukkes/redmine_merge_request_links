@@ -6,6 +6,7 @@ class MergeRequest < ActiveRecord::Base
 
   has_and_belongs_to_many :issues
 
+  # Only used to find mentioned issues, not stored.
   attr_accessor :description
 
   # Gitlab does not pass the author name, only the name of the user
@@ -15,11 +16,7 @@ class MergeRequest < ActiveRecord::Base
   # update the author name only once.
   attr_readonly :author_name
 
-  after_save :scan_description_for_issue_ids
-
-  def self.find_all_by_issue(issue)
-    joins(:issues).where(issues: { id: issue.id })
-  end
+  after_save :link_mentioned_issues
 
   # URL to link to, or nil if the URL received via webhook does not
   # use a web scheme (e.g. `javascript:`).
@@ -31,13 +28,8 @@ class MergeRequest < ActiveRecord::Base
 
   private
 
-  def scan_description_for_issue_ids
-    self.issues = Issue.where(id: mentioned_issue_ids).to_a
-  end
-
-  def mentioned_issue_ids
-    [description, title].flat_map do |value|
-      (value || '').scan(ISSUE_ID_REGEXP).flatten
-    end.uniq
+  def link_mentioned_issues
+    issue_ids = [title, description].join("\n").scan(ISSUE_ID_REGEXP).flatten
+    self.issues = Issue.where(id: issue_ids).to_a
   end
 end

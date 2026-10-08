@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateIssuesMergeRequests < Rails.version < '5.1' ? ActiveRecord::Migration : ActiveRecord::Migration[4.2]
+class CreateIssuesMergeRequests < ActiveRecord::Migration[4.2]
   def change
     create_join_table :issues, :merge_requests do |t|
       t.index :issue_id

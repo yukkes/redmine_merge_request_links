@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'redmine'
-
 Redmine::Plugin.register :redmine_merge_request_links do
   name 'Redmine Merge Request Links'
   author 'Tim Fischbach, yukkes'
@@ -10,11 +8,11 @@ Redmine::Plugin.register :redmine_merge_request_links do
   url 'https://github.com/yukkes/redmine_merge_request_links'
   author_url 'https://github.com/yukkes'
 
-  requires_redmine version_or_higher: '3.0'
+  requires_redmine version_or_higher: '5.0'
 
   project_module :merge_request_links do
     permission :view_associated_merge_requests, {}
   end
 end
 
-require_relative 'lib/redmine_merge_request_links'
+RedmineMergeRequestLinks.setup

@@ -7,6 +7,10 @@
 
 Display links to associated merge requests and pull requests on Redmine's issue page.
 
+This is a maintained fork of
+[tf/redmine_merge_request_links](https://github.com/tf/redmine_merge_request_links),
+which is no longer maintained.
+
 Intercepts webhooks and parses merge request descriptions for mentioned issue ids.
 
 The following platforms are supported:

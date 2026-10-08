@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module RedmineMergeRequestLinks
   module EventHandlers
     class Github
@@ -6,20 +8,14 @@ module RedmineMergeRequestLinks
       end
 
       def matches?(request)
-        request.headers['X-GitHub-Event'] == 'pull_request'
+        request.headers[event_header] == 'pull_request'
       end
 
       def verify(request)
-        request.body.rewind
-        payload = request.body.read
+        signature = request.headers[signature_header]
+        return false if @token.blank? || signature.blank?
 
-        signature =
-          'sha1=' + OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha1'),
-                                            @token,
-                                            payload)
-
-        Rack::Utils.secure_compare(signature,
-                                   request.headers['X-Hub-Signature'])
+        Rack::Utils.secure_compare(expected_signature(request.raw_post), signature)
       end
 
       def parse_params(params)
@@ -28,24 +24,35 @@ module RedmineMergeRequestLinks
           .permit(:state, :merged, :html_url, :title, :body, :number,
                   user: :login,
                   base: { repo: :full_name }).tap do |attributes|
-
           merged = attributes.delete(:merged)
           user = attributes.delete(:user) || {}
-          base = attributes.delete(:base) || {}
-          repo = base.fetch(:repo, {})
+          repo = (attributes.delete(:base) || {}).fetch(:repo, {})
 
-          if attributes[:state] == 'closed' && merged
-            attributes[:state] = 'merged'
-          end
-
-          attributes[:provider] = 'github'
+          attributes[:state] = 'merged' if attributes[:state] == 'closed' && merged
+          attributes[:provider] = provider
           attributes[:url] = attributes.delete(:html_url)
           attributes[:description] = attributes.delete(:body)
           attributes[:author_name] = "@#{user[:login]}"
-
-          attributes[:display_id] =
-            "#{repo[:full_name]}##{attributes.delete(:number)}"
+          attributes[:display_id] = "#{repo[:full_name]}##{attributes.delete(:number)}"
         end
+      end
+
+      private
+
+      def provider
+        'github'
+      end
+
+      def event_header
+        'X-GitHub-Event'
+      end
+
+      def signature_header
+        'X-Hub-Signature'
+      end
+
+      def expected_signature(payload)
+        "sha1=#{OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha1'), @token, payload)}"
       end
     end
   end

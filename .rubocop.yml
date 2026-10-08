@@ -1,0 +1,41 @@
+# Keep compatible with the oldest supported Redmine (3.4: Ruby 2.4, Rails 4.2).
+plugins:
+  - rubocop-rails
+  - rubocop-performance
+
+AllCops:
+  TargetRubyVersion: 2.4
+  TargetRailsVersion: 4.2
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - 'evidence/**/*'
+    - 'vendor/**/*'
+
+# Redmine 3.4 has no ApplicationRecord.
+Rails/ApplicationRecord:
+  Enabled: false
+
+# Changing the existing schema is out of scope for style checks.
+Rails/CreateTableWithTimestamps:
+  Enabled: false
+Rails/HasAndBelongsToMany:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/AbcSize:
+  Max: 25
+  Exclude:
+    - 'test/**/*'
+Metrics/ClassLength:
+  Exclude:
+    - 'test/**/*'
+Metrics/MethodLength:
+  Max: 25
+  Exclude:
+    - 'test/**/*'

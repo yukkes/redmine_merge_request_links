@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module RedmineMergeRequestLinks
   module EventHandlers
     class Gitlab
@@ -12,7 +14,10 @@ module RedmineMergeRequestLinks
       end
 
       def verify(request)
-        request.headers['X-Gitlab-Token'] == @token
+        token = request.headers['X-Gitlab-Token']
+        return false if @token.blank? || token.blank?
+
+        Rack::Utils.secure_compare(@token, token)
       end
 
       def parse_params(params)
@@ -30,8 +35,7 @@ module RedmineMergeRequestLinks
             attributes[:provider] = 'gitlab'
             attributes[:display_id] =
               "#{target[:path_with_namespace]}!#{attributes.delete(:iid)}"
-
-          attributes[:author_name] = "@#{params.require(:user).fetch(:username)}"
+            attributes[:author_name] = "@#{params.require(:user).fetch(:username)}"
           end
       end
     end

@@ -9,6 +9,15 @@
 - Store GitLab merge requests in `opened` and `locked` state as `open`
   so that the "open" merge request filter matches them. A migration
   converts existing records. Run `rake redmine:plugins:migrate`.
+- Reject webhooks with 403 if the token for the platform is not
+  configured or the token/signature header is missing. Previously GitLab
+  webhooks were accepted without authentication when
+  `REDMINE_MERGE_REQUEST_LINKS_GITLAB_WEBHOOK_TOKEN` was unset, and GitHub
+  and Gitea webhooks caused an internal server error.
+- Only link merge request URLs with an `http` or `https` scheme.
+- Avoid duplicate and per issue queries when displaying and linking merge
+  requests.
+- Run RuboCop and Brakeman in CI.
 
 ## Version 2.2
 

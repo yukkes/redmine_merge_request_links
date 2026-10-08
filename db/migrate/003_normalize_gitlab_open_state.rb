@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class NormalizeGitlabOpenState < Rails.version < '5.1' ? ActiveRecord::Migration : ActiveRecord::Migration[4.2]
   def up
     execute("UPDATE merge_requests SET state = 'open' WHERE state IN ('opened', 'locked')")

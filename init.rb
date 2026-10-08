@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'redmine'
 
 Redmine::Plugin.register :redmine_merge_request_links do

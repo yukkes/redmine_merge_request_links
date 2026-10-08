@@ -1,50 +1,26 @@
+# frozen_string_literal: true
+
 module RedmineMergeRequestLinks
   module EventHandlers
-    class Gitea
-      def initialize(token:)
-        @token = token
+    # Gitea sends pull request payloads in the same format as GitHub,
+    # but uses its own headers and a SHA256 signature.
+    class Gitea < Github
+      private
+
+      def provider
+        'gitea'
       end
 
-      def matches?(request)
-        request.headers['X-Gitea-Event'] == 'pull_request'
+      def event_header
+        'X-Gitea-Event'
       end
 
-      def verify(request)
-        request.body.rewind
-        payload = request.body.read
-
-        signature = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
-                                            @token,
-                                            payload)
-
-        Rack::Utils.secure_compare(signature,
-                                   request.headers['X-Gitea-Signature'])
+      def signature_header
+        'X-Gitea-Signature'
       end
 
-      def parse_params(params)
-        params
-          .require(:pull_request)
-          .permit(:state, :merged, :html_url, :title, :body, :number,
-                  user: :login,
-                  base: { repo: :full_name }).tap do |attributes|
-
-          merged = attributes.delete(:merged)
-          user = attributes.delete(:user) || {}
-          base = attributes.delete(:base) || {}
-          repo = base.fetch(:repo, {})
-
-          if attributes[:state] == 'closed' && merged
-            attributes[:state] = 'merged'
-          end
-
-          attributes[:provider] = 'gitea'
-          attributes[:url] = attributes.delete(:html_url)
-          attributes[:description] = attributes.delete(:body)
-          attributes[:author_name] = "@#{user[:login]}"
-
-          attributes[:display_id] =
-            "#{repo[:full_name]}##{attributes.delete(:number)}"
-        end
+      def expected_signature(payload)
+        OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), @token, payload)
       end
     end
   end

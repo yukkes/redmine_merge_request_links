@@ -1,5 +1,5 @@
 <% merge_requests.each do |merge_request| %>
-  <%= link_to(merge_request.display_id, merge_request.url, title: merge_request.title) %>
+  <%= link_to_if(merge_request.web_url, merge_request.display_id, merge_request.web_url, title: merge_request.title) %>
   <%= content_tag(:span, merge_request.state.first,
                   title: merge_request.state,
                   class: "merge-request-state merge-request-state-#{merge_request.state}") +

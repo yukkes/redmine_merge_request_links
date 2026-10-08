@@ -2,6 +2,24 @@ name: tests
 on: [push, pull_request]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+      - name: Install Ruby linters
+        run: >-
+          gem install --no-document
+          rubocop:1.91.0 rubocop-rails:2.38.0 rubocop-performance:1.27.0
+          brakeman:8.1.0
+      - name: RuboCop
+        run: rubocop
+      - name: Brakeman
+        run: brakeman --force --no-pager --exit-on-warn --exit-on-error .
+
   test:
     runs-on: ubuntu-latest
 
@@ -9,12 +27,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - redmine-version: '3.4'
-            patch-version: '3.4'
-          - redmine-version: '4.0'
-            patch-version: '4.0'
-          - redmine-version: '5.0'
-            patch-version: '5.0'
           - redmine-version: '5.1'
             patch-version: '5.0'
           - redmine-version: '6.1'

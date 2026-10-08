@@ -1,4 +1,9 @@
+# frozen_string_literal: true
+
 class MergeRequest < ActiveRecord::Base
+  ISSUE_ID_REGEXP = /(?:[^a-z]|\A)(?:#|REDMINE-)(\d+)/.freeze
+  WEB_URL_SCHEMES = %w[http https].freeze
+
   has_and_belongs_to_many :issues
 
   attr_accessor :description
@@ -13,22 +18,26 @@ class MergeRequest < ActiveRecord::Base
   after_save :scan_description_for_issue_ids
 
   def self.find_all_by_issue(issue)
-    includes(:issues).where(issues: { id: issue.id })
+    joins(:issues).where(issues: { id: issue.id })
+  end
+
+  # URL to link to, or nil if the URL received via webhook does not
+  # use a web scheme (e.g. `javascript:`).
+  def web_url
+    url if WEB_URL_SCHEMES.include?(URI.parse(url.to_s).scheme&.downcase)
+  rescue URI::InvalidURIError
+    nil
   end
 
   private
 
-  ISSUE_ID_REGEXP = /(?:[^a-z]|\A)(?:#|REDMINE-)(\d+)/
-
   def scan_description_for_issue_ids
-    self.issues = mentioned_issue_ids.map do |match|
-      Issue.find_by_id(match[0])
-    end.compact
+    self.issues = Issue.where(id: mentioned_issue_ids).to_a
   end
 
   def mentioned_issue_ids
     [description, title].flat_map do |value|
-      (value || '').scan(ISSUE_ID_REGEXP)
+      (value || '').scan(ISSUE_ID_REGEXP).flatten
     end.uniq
   end
 end

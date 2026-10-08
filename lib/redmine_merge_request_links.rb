@@ -1,12 +1,14 @@
+# frozen_string_literal: true
+
 require_relative 'redmine_merge_request_links/hooks'
 require_relative 'redmine_merge_request_links/patches/issue_patch'
 require_relative 'redmine_merge_request_links/patches/issue_query_patch'
 require_relative 'redmine_merge_request_links/patches/queries_helper_patch'
 
 module RedmineMergeRequestLinks
-  github_token = ENV['REDMINE_MERGE_REQUEST_LINKS_GITHUB_WEBHOOK_TOKEN']
-  gitlab_token = ENV['REDMINE_MERGE_REQUEST_LINKS_GITLAB_WEBHOOK_TOKEN']
-  gitea_token  = ENV['REDMINE_MERGE_REQUEST_LINKS_GITEA_WEBHOOK_TOKEN']
+  github_token = ENV.fetch('REDMINE_MERGE_REQUEST_LINKS_GITHUB_WEBHOOK_TOKEN', nil)
+  gitlab_token = ENV.fetch('REDMINE_MERGE_REQUEST_LINKS_GITLAB_WEBHOOK_TOKEN', nil)
+  gitea_token  = ENV.fetch('REDMINE_MERGE_REQUEST_LINKS_GITEA_WEBHOOK_TOKEN', nil)
 
   mattr_accessor :event_handlers
   self.event_handlers = [

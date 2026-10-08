@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Unreleased
+
+- Support Redmine 5.1, 6 and 7. Add view hook patches for Redmine
+  6.1 and 7.0 and replace `alias_method` chains with `prepend`.
+- Use relative image URLs in the stylesheet so that provider icons
+  are displayed with the Propshaft asset pipeline of Redmine 6+.
+- Store GitLab merge requests in `opened` and `locked` state as `open`
+  so that the "open" merge request filter matches them. A migration
+  converts existing records. Run `rake redmine:plugins:migrate`.
+
 ## Version 2.2
 
 2019-08-12

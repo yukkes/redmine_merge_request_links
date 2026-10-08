@@ -38,11 +38,36 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
 
     merge_request = MergeRequest.where(url: MERGE_REQUEST_URL).first
     assert merge_request.present?
-    assert_equal 'opened', merge_request.state
+    assert_equal 'open', merge_request.state
     assert_equal 'Some merge request', merge_request.title
     assert_equal 'group/project!23', merge_request.display_id
     assert_equal '@john', merge_request.author_name
     assert_equal 'gitlab', merge_request.provider
+  end
+
+  def test_maps_locked_gitlab_merge_request_to_open
+    request.headers['X-Gitlab-Event'] = 'Merge Request Hook'
+    request.headers['X-Gitlab-Token'] = 'secret'
+    post(:event,
+         params: {
+           user: {
+             username: 'john'
+           },
+           object_attributes: {
+             url: MERGE_REQUEST_URL,
+             title: 'Some merge request',
+             state: 'locked',
+             iid: 23,
+             target: {
+               path_with_namespace: 'group/project'
+             }
+           }
+         })
+
+    assert_response :success
+
+    merge_request = MergeRequest.where(url: MERGE_REQUEST_URL).first
+    assert_equal 'open', merge_request.state
   end
 
   def test_gitlab_merge_request_event_updates_merge_request
@@ -139,7 +164,7 @@ class MergeRequestsControllerTest < Redmine::ControllerTest
 
     merge_request = MergeRequest.where(url: MERGE_REQUEST_URL).first
     assert merge_request.present?
-    assert_equal 'opened', merge_request.state
+    assert_equal 'open', merge_request.state
     assert_equal 'Some merge request', merge_request.title
     assert_equal 'group/project!23', merge_request.display_id
     assert_equal '@john', merge_request.author_name

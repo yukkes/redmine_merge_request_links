@@ -23,6 +23,10 @@ module RedmineMergeRequestLinks
           .tap do |attributes|
             target = attributes.delete(:target) || {}
 
+            # GitLab reports open merge requests as "opened" and uses the
+            # short-lived "locked" state while merging. Map both to the
+            # "open" state used by the other providers and the filter.
+            attributes[:state] = 'open' if %w[opened locked].include?(attributes[:state])
             attributes[:provider] = 'gitlab'
             attributes[:display_id] =
               "#{target[:path_with_namespace]}!#{attributes.delete(:iid)}"

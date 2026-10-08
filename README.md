@@ -1,6 +1,9 @@
 # Redmine Merge Request Links
 
-[![Tests](https://github.com/tf/redmine_merge_request_links/workflows/tests/badge.svg)](https://github.com/tf/redmine_merge_request_links/actions)
+[![tests](https://github.com/yukkes/redmine_merge_request_links/actions/workflows/tests.yml/badge.svg)](https://github.com/yukkes/redmine_merge_request_links/actions/workflows/tests.yml)
+[![Redmine](https://img.shields.io/badge/Redmine-5.1%20%7C%206.1%20%7C%207.0-B32024?logo=redmine)](https://www.redmine.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](MIT-LICENSE)
+[![Code style: RuboCop](https://img.shields.io/badge/code_style-rubocop-brightgreen.svg)](https://github.com/rubocop/rubocop)
 
 Display links to associated merge requests and pull requests on Redmine's issue page.
 
@@ -170,6 +173,15 @@ $ bin/test
 ```
 
 to run the test suite inside a Docker container.
+
+Static analysis runs in CI as well. Run it locally with
+[RuboCop](https://rubocop.org) and [Brakeman](https://brakemanscanner.org):
+
+```
+$ gem install rubocop rubocop-rails rubocop-performance brakeman
+$ rubocop
+$ brakeman --force --no-pager --exit-on-warn .
+```
 
 ## License
 

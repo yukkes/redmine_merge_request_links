@@ -9,6 +9,12 @@ div#issue-merge-requests {
   padding-left: 1em;
 }
 
+/* Keep the bordered history tab content beside the floated box instead
+   of extending below it. */
+#issue-merge-requests ~ .tab-content {
+  display: flow-root;
+}
+
 @media screen and (max-width: 899px) {
   div#issue-merge-requests {
     float: none;

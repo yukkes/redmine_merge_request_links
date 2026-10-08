@@ -2,13 +2,22 @@
 
 ## Unreleased
 
-- Support Redmine 5.1, 6 and 7. Add view hook patches for Redmine
-  6.1 and 7.0 and replace `alias_method` chains with `prepend`.
+- Require Redmine 5.0 or later. Drop support for Redmine 3.4 and 4.
+- Patching Redmine is no longer required. The merge request box is
+  rendered at the top of the issue history by the plugin itself. A
+  previously applied view hook patch is no longer used and can be
+  reverted.
+- Keep the bordered issue history of Redmine 5 and 6 beside the merge
+  request box instead of drawing its lines below the box.
+- Support Redmine 5.1, 6 and 7. Replace `alias_method` chains with
+  `prepend`.
+- Simplify the plugin: the webhook providers are described in one
+  table, the plugin's lib directory is autoloaded and the merge request
+  filter is built with Active Record.
 - Use relative image URLs in the stylesheet so that provider icons
   are displayed with the Propshaft asset pipeline of Redmine 6+.
 - Store GitLab merge requests in `opened` and `locked` state as `open`
-  so that the "open" merge request filter matches them. A migration
-  converts existing records. Run `rake redmine:plugins:migrate`.
+  so that the "open" merge request filter matches them.
 - Reject webhooks with 403 if the token for the platform is not
   configured or the token/signature header is missing. Previously GitLab
   webhooks were accepted without authentication when

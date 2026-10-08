@@ -28,220 +28,132 @@ class IssuesControllerTest < Redmine::ControllerTest
            :queries
 
   def test_renders_issue_merge_requests
-    merge_request = MergeRequest.create!(title: 'Some merge request')
-    merge_request.issues << issue
+    merge_request = create_merge_request
 
-    sign_in(user_with_permission)
-    get(
-      :show,
-      params: {
-        id: issue.id
-      }
-    )
+    show_issue(user_with_permission)
 
-    assert_response :success
-    assert_select "#merge-request-#{merge_request.id}"
+    assert_select "#history > #issue-merge-requests:first-child #merge-request-#{merge_request.id}"
+    assert_select 'div.issue #issue-merge-requests', count: 0
   end
 
   def test_does_not_link_merge_request_url_without_web_scheme
-    merge_request = MergeRequest.create!(title: 'Some merge request', url: 'javascript:alert(1)')
-    merge_request.issues << issue
+    merge_request = create_merge_request(url: 'javascript:alert(1)')
 
-    sign_in(user_with_permission)
-    get(
-      :show,
-      params: {
-        id: issue.id
-      }
-    )
+    show_issue(user_with_permission)
 
-    assert_response :success
     assert_select "#merge-request-#{merge_request.id}", text: /Some merge request/
     assert_select 'a[href^="javascript"]', count: 0
   end
 
   def test_requires_merge_request_links_module_to_be_enabled
     issue.project.enabled_module_names -= ['merge_request_links']
-    merge_request = MergeRequest.create!(title: 'Some merge request')
-    merge_request.issues << issue
+    merge_request = create_merge_request
 
-    sign_in(user_with_permission)
-    get(
-      :show,
-      params: {
-        id: issue.id
-      }
-    )
+    show_issue(user_with_permission)
 
-    assert_response :success
     assert_select "#merge-request-#{merge_request.id}", count: 0
   end
 
   def test_requires_permission
-    merge_request = MergeRequest.create!(title: 'Some merge request')
-    merge_request.issues << issue
+    merge_request = create_merge_request
 
-    sign_in(user_without_permission)
-    get(
-      :show,
-      params: {
-        id: issue.id
-      }
-    )
+    show_issue(user_without_permission)
 
-    assert_response :success
     assert_select "#merge-request-#{merge_request.id}", count: 0
   end
 
   def test_merge_request_filter_any
-    merge_request = MergeRequest.create!(title: 'Some merge request', state: 'open')
-    merge_request.issues << issue
+    create_merge_request
 
-    sign_in(user_with_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        set_filter: 1,
-        f: ['merge_request'],
-        op: {
-          'merge_request' => '*'
-        }
-      }
-    )
+    list_issues(user_with_permission, operator: '*')
 
-    assert_response :success
     assert_equal [issue], issues_in_list
   end
 
   def test_merge_request_filter_none
-    merge_request = MergeRequest.create!(title: 'Some merge request', state: 'open')
-    merge_request.issues << issue
+    create_merge_request
 
-    sign_in(user_with_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        set_filter: 1,
-        f: ['merge_request'],
-        op: {
-          'merge_request' => '!*'
-        }
-      }
-    )
+    list_issues(user_with_permission, operator: '!*')
 
-    assert_response :success
     assert_not_includes issues_in_list, issue
   end
 
   def test_merge_request_filter_open
-    merge_request = MergeRequest.create!(title: 'Some merge request', state: 'open')
-    merge_request.issues << issue
+    create_merge_request
 
-    sign_in(user_with_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        set_filter: 1,
-        f: ['merge_request'],
-        op: {
-          'merge_request' => '='
-        },
-        v: {
-          'merge_request' => ['open']
-        }
-      }
-    )
+    list_issues(user_with_permission, operator: '=', values: ['open'])
 
-    assert_response :success
     assert_equal [issue], issues_in_list
   end
 
   def test_merge_request_filter_merged
-    merge_request = MergeRequest.create!(title: 'Some merge request', state: 'open')
-    merge_request.issues << issue
+    create_merge_request
 
-    sign_in(user_with_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        set_filter: 1,
-        f: ['merge_request'],
-        op: {
-          'merge_request' => '='
-        },
-        v: {
-          'merge_request' => ['merged']
-        }
-      }
-    )
+    list_issues(user_with_permission, operator: '=', values: ['merged'])
 
-    assert_response :success
     assert_not_includes issues_in_list, issue
   end
 
+  def test_merge_request_filter_not_merged
+    create_merge_request
+
+    list_issues(user_with_permission, operator: '!', values: ['merged'])
+
+    assert_equal [issue], issues_in_list
+  end
+
   def test_merge_requests_column
-    merge_request = MergeRequest.create!(title: 'Some merge request', state: 'open', display_id: 'mr_id')
-    merge_request.issues << issue
+    create_merge_request(display_id: 'mr_id')
 
-    sign_in(user_with_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        set_filter: 1,
-        f: ['merge_request'],
-        op: {
-          'merge_request' => '*'
-        },
-        c: ['merge_requests']
-      }
-    )
+    list_issues(user_with_permission, operator: '*', columns: ['merge_requests'])
 
-    assert_response :success
     assert_includes columns_in_issues_list, 'Merge requests'
     assert_match 'mr_id', css_select('td.merge_requests').first.text
   end
 
   def test_merge_request_filter_no_permission
-    merge_request = MergeRequest.create!(title: 'Some merge request', state: 'open')
-    merge_request.issues << issue
+    create_merge_request
 
-    sign_in(user_without_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        set_filter: 1,
-        f: ['merge_request'],
-        op: {
-          'merge_request' => '*'
-        }
-      }
-    )
+    list_issues(user_without_permission, operator: '*')
 
-    assert_response :success
     assert issues_in_list.length > 1
   end
 
   def test_merge_requests_column_no_permission
     sign_in(user_without_permission)
-    get(
-      :index,
-      params: {
-        project_id: issue.project_id,
-        c: ['merge_requests']
-      }
-    )
+    get(:index, params: { project_id: issue.project_id, c: ['merge_requests'] })
 
     assert_response :success
     assert_not_includes columns_in_issues_list, 'Merge requests'
   end
 
   private
+
+  def create_merge_request(**attributes)
+    MergeRequest.create!(title: 'Some merge request', state: 'open', **attributes).tap do |merge_request|
+      merge_request.issues << issue
+    end
+  end
+
+  def show_issue(user)
+    sign_in(user)
+    get(:show, params: { id: issue.id })
+    assert_response :success
+  end
+
+  def list_issues(user, operator:, values: nil, columns: nil)
+    sign_in(user)
+    get(:index,
+        params: {
+          project_id: issue.project_id,
+          set_filter: 1,
+          f: ['merge_request'],
+          op: { 'merge_request' => operator },
+          v: values && { 'merge_request' => values },
+          c: columns
+        }.compact)
+    assert_response :success
+  end
 
   def sign_in(user)
     @request.session[:user_id] = user.id

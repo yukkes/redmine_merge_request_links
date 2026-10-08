@@ -47,15 +47,7 @@ PLATFORMS = ["GitHub", "GitLab", "Gitea"]
 STATES = ["open", "merged", "closed"]
 ADMIN_PASSWORD = "admin12345"
 
-# Redmine version -> view hook patch in patches/
-PATCH_VERSIONS = {
-    "3.4": "3.4",
-    "4.0": "4.0",
-    "5.0": "5.0",
-    "5.1": "5.0",
-    "6.1": "6.1",
-    "7.0": "7.0",
-}
+SUPPORTED_VERSIONS = ["5.0", "5.1", "6.0", "6.1", "7.0"]
 
 SEED_SCRIPT = f"""
 Setting.default_language = 'en'
@@ -70,9 +62,12 @@ project = Project.find_by_identifier('demo') ||
                   trackers: Tracker.all)
 %w[{" ".join(PLATFORMS)}].each do |platform|
   subject = "#{{platform}} merge requests"
-  issue = Issue.find_by_subject(subject) ||
-    Issue.create!(project: project, tracker: project.trackers.first,
-                  author: admin, subject: subject)
+  issue = Issue.find_by_subject(subject)
+  unless issue
+    issue = Issue.create!(project: project, tracker: project.trackers.first,
+                          author: admin, subject: subject)
+    issue.journals.create!(user: admin, notes: 'A note in the issue history.')
+  end
   puts "ISSUE #{{platform}} #{{issue.id}}"
 end
 """
@@ -96,8 +91,6 @@ def build_image(version):
             image_tag(version),
             "--build-arg",
             f"REDMINE_VERSION={version}",
-            "--build-arg",
-            f"PATCH_VERSION={PATCH_VERSIONS[version]}",
             str(ROOT),
         ],
         capture_output=True,
@@ -278,6 +271,29 @@ def take_screenshots(playwright, base, issues, out_prefix, chrome_path):
             errors.append(f"{platform}: states {[r['state'] for r in rows]}")
         if any(r["provider"] != platform.lower() or not r["icon"] for r in rows):
             errors.append(f"{platform}: provider class or icon missing")
+        # The box is rendered between the issue details and the history.
+        if not page.evaluate("""() => {
+              const box = document.getElementById('issue-merge-requests');
+              return box.parentElement.id === 'history' && !box.previousElementSibling;
+            }"""):
+            errors.append(f"{platform}: box not placed between details and history")
+        overlapping = page.evaluate("""() => {
+              const box = document.getElementById('issue-merge-requests').getBoundingClientRect();
+              return [...document.querySelectorAll('#history *')].filter(el => {
+                if (el.closest('#issue-merge-requests')) return false;
+                const style = getComputedStyle(el);
+                const painted = ['Top', 'Bottom', 'Left', 'Right'].some(side =>
+                  parseFloat(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== 'none'
+                ) || style.backgroundColor !== 'rgba(0, 0, 0, 0)';
+                // Tabs are clipped by their container.
+                const rect = el.getBoundingClientRect();
+                const right = Math.min(rect.right, (el.closest('.tabs') || el).getBoundingClientRect().right);
+                return painted && rect.width > 0 && right > box.left + 1 && rect.left < box.right &&
+                  rect.bottom > box.top && rect.top < box.bottom;
+              }).map(el => `${el.tagName}.${el.className}`);
+            }""")
+        if overlapping:
+            errors.append(f"{platform}: history overlaps box: {overlapping}")
         shot(f"issue_{platform.lower()}")
 
     columns = "c[]=subject&c[]=merge_requests&sort=id"
@@ -308,7 +324,7 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--versions", nargs="+", default=["5.1", "6.1", "7.0"], choices=sorted(PATCH_VERSIONS)
+        "--versions", nargs="+", default=SUPPORTED_VERSIONS, choices=SUPPORTED_VERSIONS
     )
     parser.add_argument("--build", action="store_true", help="build the test images first")
     parser.add_argument("--out", type=pathlib.Path, default=pathlib.Path(__file__).resolve().parent)

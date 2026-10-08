@@ -1,12 +1,9 @@
-<% if User.current.allowed_to?(:view_associated_merge_requests, @project) %>
-  <% merge_requests = MergeRequest.find_all_by_issue(@issue).to_a %>
-
-  <% if merge_requests.present? %>
+<% merge_requests = User.current.allowed_to?(:view_associated_merge_requests, @project) ? @issue.merge_requests.to_a : [] %>
+<% if merge_requests.any? %>
   <div id="issue-merge-requests">
     <h3><%= l(:mrl_label_associated_merge_requests) %></h3>
     <%= render(partial: 'merge_request_links/merge_request_link',
                collection: merge_requests,
                as: :merge_request) %>
   </div>
-  <% end %>
 <% end %>

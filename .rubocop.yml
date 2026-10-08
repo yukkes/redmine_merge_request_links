@@ -1,18 +1,18 @@
-# Keep compatible with the oldest supported Redmine (3.4: Ruby 2.4, Rails 4.2).
+# Keep compatible with the oldest supported Redmine (5.0: Ruby 2.5, Rails 6.1).
 plugins:
   - rubocop-rails
   - rubocop-performance
 
 AllCops:
-  TargetRubyVersion: 2.4
-  TargetRailsVersion: 4.2
+  TargetRubyVersion: 2.5
+  TargetRailsVersion: 6.1
   NewCops: enable
   SuggestExtensions: false
   Exclude:
     - 'evidence/**/*'
     - 'vendor/**/*'
 
-# Redmine 3.4 has no ApplicationRecord.
+# Redmine 5.0 has no ApplicationRecord.
 Rails/ApplicationRecord:
   Enabled: false
 

@@ -5,24 +5,13 @@ class MergeRequestsController < ApplicationController
   skip_before_action :check_if_login_required
 
   def event
-    event_handler = find_event_handler
-    return head :bad_request unless event_handler
-    return head :forbidden unless event_handler.verify(request)
+    provider = RedmineMergeRequestLinks::Webhook.provider_for(request)
+    return head :bad_request unless provider
+    return head :forbidden unless provider.authentic?(request)
 
-    attributes = event_handler.parse_params(params)
-
-    merge_request =
-      MergeRequest.find_or_initialize_by(url: attributes[:url])
-    merge_request.update!(attributes)
+    attributes = provider.attributes(params)
+    MergeRequest.find_or_initialize_by(url: attributes[:url]).update!(attributes)
 
     head :ok
-  end
-
-  private
-
-  def find_event_handler
-    RedmineMergeRequestLinks.event_handlers.detect do |event_handler|
-      event_handler.matches?(request)
-    end
   end
 end

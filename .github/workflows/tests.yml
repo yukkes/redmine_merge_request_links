@@ -29,20 +29,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - redmine-version: '5.1'
-            patch-version: '5.0'
-          - redmine-version: '6.1'
-            patch-version: '6.1'
-          - redmine-version: '7.0'
-            patch-version: '7.0'
+        redmine-version: ['5.0', '5.1', '6.0', '6.1', '7.0']
 
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: bin/build --build-arg "REDMINE_VERSION=$REDMINE_VERSION" --build-arg "PATCH_VERSION=$PATCH_VERSION"
+        run: bin/build --build-arg "REDMINE_VERSION=$REDMINE_VERSION"
         env:
           REDMINE_VERSION: ${{ matrix.redmine-version }}
-          PATCH_VERSION: ${{ matrix.patch-version }}
       - name: Run tests
         run: bin/test

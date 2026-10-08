@@ -8,19 +8,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        redmine-version:
-          - '3.4'
-          - '4.0'
-          - '5.0'
-
-    env:
-      BUNDLE_GEMFILE: ${{ matrix.gemfile }}
+        include:
+          - redmine-version: '3.4'
+            patch-version: '3.4'
+          - redmine-version: '4.0'
+            patch-version: '4.0'
+          - redmine-version: '5.0'
+            patch-version: '5.0'
+          - redmine-version: '5.1'
+            patch-version: '5.0'
+          - redmine-version: '6.1'
+            patch-version: '6.1'
+          - redmine-version: '7.0'
+            patch-version: '7.0'
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build image
-        run: bin/build --build-arg REDMINE_VERSION=$REDMINE_VERSION --build-arg PATCH_VERSION=$REDMINE_VERSION
+        run: bin/build --build-arg "REDMINE_VERSION=$REDMINE_VERSION" --build-arg "PATCH_VERSION=$PATCH_VERSION"
         env:
           REDMINE_VERSION: ${{ matrix.redmine-version }}
+          PATCH_VERSION: ${{ matrix.patch-version }}
       - name: Run tests
         run: bin/test

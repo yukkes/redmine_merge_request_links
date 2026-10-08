@@ -15,7 +15,7 @@ The following platforms are supported:
 
 ## Requirements
 
-* Redmine 3 (tested with 3.4.6)
+* Redmine 3.4, 4, 5, 6 or 7 (tested with 3.4, 4.0, 5.0, 5.1, 6.1 and 7.0)
 
 ## Installation
 
@@ -33,6 +33,17 @@ applying a patch to your Redmine instance. From your Redmine path run:
 $ git apply plugins/redmine_merge_request_links/patches/view_hook_issues_show_after_details_redmine_3.4.patch
 ```
 
+Choose the patch matching your Redmine version:
+
+| Redmine version | Patch                                                  |
+|-----------------|--------------------------------------------------------|
+| 3.4             | `view_hook_issues_show_after_details_redmine_3.4.patch` |
+| 4.0             | `view_hook_issues_show_after_details_redmine_4.0.patch` |
+| 4.1             | `view_hook_issues_show_after_details_redmine_4.1.patch` |
+| 5.0, 5.1        | `view_hook_issues_show_after_details_redmine_5.0.patch` |
+| 6.1             | `view_hook_issues_show_after_details_redmine_6.1.patch` |
+| 7.0             | `view_hook_issues_show_after_details_redmine_7.0.patch` |
+
 or if you use EasyRedmine
 ```bash
 $ git apply plugins/redmine_merge_request_links/patches/view_hook_issues_show_after_details_easyredmine.patch
@@ -42,12 +53,13 @@ One of the following environment variables need to be set:
 
 * `REDMINE_MERGE_REQUEST_LINKS_GITLAB_WEBHOOK_TOKEN`
 * `REDMINE_MERGE_REQUEST_LINKS_GITHUB_WEBHOOK_TOKEN`
+* `REDMINE_MERGE_REQUEST_LINKS_GITEA_WEBHOOK_TOKEN`
 
 If you use systemd set appropriate environment variable:
 
 `https://serverfault.com/a/413408`
 
-They must contain secrets which have to be configured in GitLab/GitHub to
+They must contain secrets which have to be configured in GitLab/GitHub/Gitea to
 authenticate webhooks.
 
 Export the environment variable(s) in your bash or webserver config.
@@ -59,7 +71,7 @@ Finally, restart your webserver.
 
 ## Configuration
 
-Create a webhook in GitLab or GitHub as described here:
+Create a webhook in GitLab, GitHub or Gitea as described here:
 
 ### GitLab
 

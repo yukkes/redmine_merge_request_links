@@ -2,24 +2,42 @@ div#issue-changesets {
   clear: right;
 }
 
+/* Lay the history area out as two columns: the bordered tabs span the
+   full width, the tab content and the merge request box sit side by
+   side below them. Using named grid areas instead of float keeps the
+   tab bar's bottom border continuous and works with any theme. */
+#history:has(#issue-merge-requests) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 45%);
+  grid-template-areas:
+    "tabs tabs"
+    "content box";
+  column-gap: 1em;
+  align-items: start;
+}
+
+#history:has(#issue-merge-requests) > .tabs {
+  grid-area: tabs;
+}
+
+#history:has(#issue-merge-requests) > .tab-content {
+  grid-area: content;
+  /* The grid item must not grow wider than its column. */
+  min-width: 0;
+}
+
 div#issue-merge-requests {
-  float: right;
-  width: 45%;
-  margin: 1em 0 2em 1em;
+  grid-area: box;
+  margin: 0;
   padding-left: 1em;
 }
 
-/* Keep the bordered history tab content beside the floated box instead
-   of extending below it. */
-#issue-merge-requests ~ .tab-content {
-  display: flow-root;
-}
-
 @media screen and (max-width: 899px) {
+  #history:has(#issue-merge-requests) {
+    display: block;
+  }
+
   div#issue-merge-requests {
-    float: none;
-    width: auto;
-    margin-left: 0;
     padding-left: 0;
     margin-bottom: 2em;
   }
@@ -43,6 +61,10 @@ div#issue-merge-requests {
 
 .merge-request-gitea {
   background-image: url("../images/gitea.svg");
+}
+
+.merge-request-codecommit {
+  background-image: url("../images/codecommit.svg");
 }
 
 .merge-request:last-child {

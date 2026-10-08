@@ -2,9 +2,9 @@
 """Reproduce the screenshot evidence in this directory.
 
 For each Redmine version, this script starts a Redmine container with the
-plugin mounted, creates one issue per platform (GitHub, GitLab, Gitea),
-links an open, a merged and a closed merge request to each issue through
-signed webhooks, and takes screenshots with Playwright:
+plugin mounted, creates one issue per platform (GitHub, GitLab, Gitea,
+CodeCommit), links an open, a merged and a closed merge request to each
+issue through signed webhooks, and takes screenshots with Playwright:
 
   redmine-<version>_issue_<platform>.png    issue page with 3 merge requests
   redmine-<version>_issue_list.png          issue list with merge request column
@@ -32,6 +32,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -42,8 +43,13 @@ from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 IMAGE = "redmine_merge_request_links_test"
 SECRET_KEY_BASE = "evidence-secret-key-base-0123456789"
-TOKENS = {"github": "gh-secret", "gitlab": "gl-secret", "gitea": "gt-secret"}
-PLATFORMS = ["GitHub", "GitLab", "Gitea"]
+TOKENS = {
+    "github": "gh-secret",
+    "gitlab": "gl-secret",
+    "gitea": "gt-secret",
+    "codecommit": "cc-secret",
+}
+PLATFORMS = ["GitHub", "GitLab", "Gitea", "CodeCommit"]
 STATES = ["open", "merged", "closed"]
 ADMIN_PASSWORD = "admin12345"
 
@@ -102,14 +108,17 @@ def build_image(version):
         result.check_returncode()
 
 
-def container_name(version):
-    return f"mrl_evidence_{version}"
+def container_name(version, theme=None):
+    name = f"mrl_evidence_{version}"
+    if theme:
+        name += f"_{theme.name}"
+    return name
 
 
-def start_container(version, port):
-    name = container_name(version)
+def start_container(version, port, theme=None):
+    name = container_name(version, theme)
     subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
-    run(
+    args = [
         "docker",
         "run",
         "-d",
@@ -127,11 +136,19 @@ def start_container(version, port):
         f"REDMINE_MERGE_REQUEST_LINKS_GITLAB_WEBHOOK_TOKEN={TOKENS['gitlab']}",
         "-e",
         f"REDMINE_MERGE_REQUEST_LINKS_GITEA_WEBHOOK_TOKEN={TOKENS['gitea']}",
+        "-e",
+        f"REDMINE_MERGE_REQUEST_LINKS_CODECOMMIT_WEBHOOK_TOKEN={TOKENS['codecommit']}",
         "-v",
         f"{ROOT}:/usr/src/redmine/plugins/redmine_merge_request_links:ro",
-        image_tag(version),
-        stdout=subprocess.DEVNULL,
-    )
+    ]
+    if theme:
+        theme_dir = pathlib.Path(theme).resolve()
+        args += [
+            "-v",
+            f"{theme_dir}:/usr/src/redmine/themes/{theme_dir.name}:ro",
+        ]
+    args += [image_tag(version)]
+    run(*args, stdout=subprocess.DEVNULL)
 
 
 def wait_for_http(base, timeout=600):
@@ -145,7 +162,10 @@ def wait_for_http(base, timeout=600):
     raise TimeoutError(f"{base} did not respond within {timeout}s")
 
 
-def seed(version):
+def seed(version, theme=None):
+    script = SEED_SCRIPT
+    if theme:
+        script += f"Setting.ui_theme = '{theme.name}'\n"
     result = run(
         "docker",
         "exec",
@@ -154,11 +174,11 @@ def seed(version):
         f"SECRET_KEY_BASE={SECRET_KEY_BASE}",
         "-e",
         "RAILS_ENV=production",
-        container_name(version),
+        container_name(version, theme),
         "bash",
         "-c",
         "cd /usr/src/redmine && cat > /tmp/seed.rb && bin/rails runner /tmp/seed.rb",
-        input=SEED_SCRIPT,
+        input=script,
         capture_output=True,
         text=True,
     )
@@ -190,6 +210,32 @@ def webhook_request(platform, state, issue_id, number):
         }
         payload = json.dumps(body).encode()
         return {"X-Gitlab-Event": "Merge Request Hook", "X-Gitlab-Token": TOKENS["gitlab"]}, payload
+
+    if platform == "CodeCommit":
+        # The EventBridge event as relayed by an API destination or Lambda
+        status = "Open" if state == "open" else "Closed"
+        body = {
+            "version": "0",
+            "id": f"00000000-0000-0000-0000-{number:012d}",
+            "detail-type": "CodeCommit Pull Request State Change",
+            "source": "aws.codecommit",
+            "account": "123456789012",
+            "time": "2026-01-01T00:00:00Z",
+            "region": "ap-northeast-1",
+            "resources": [],
+            "detail": {
+                "pullRequestId": str(number),
+                "pullRequestStatus": status,
+                "isMerged": "True" if state == "merged" else "False",
+                "repositoryNames": ["app"],
+                "title": title,
+                "description": f"Refs #{issue_id}",
+                "author": "arn:aws:iam::123456789012:user/jdoe",
+                "callerUserArn": "arn:aws:iam::123456789012:user/jdoe",
+            },
+        }
+        payload = json.dumps(body).encode()
+        return {"X-CodeCommit-Token": TOKENS["codecommit"]}, payload
 
     # GitHub and Gitea report merged pull requests as closed + merged
     pr_state = "open" if state == "open" else "closed"
@@ -271,12 +317,12 @@ def take_screenshots(playwright, base, issues, out_prefix, chrome_path):
             errors.append(f"{platform}: states {[r['state'] for r in rows]}")
         if any(r["provider"] != platform.lower() or not r["icon"] for r in rows):
             errors.append(f"{platform}: provider class or icon missing")
-        # The box is rendered between the issue details and the history.
+        # The box is rendered inside the history container.
         if not page.evaluate("""() => {
               const box = document.getElementById('issue-merge-requests');
-              return box.parentElement.id === 'history' && !box.previousElementSibling;
+              return box.parentElement.id === 'history';
             }"""):
-            errors.append(f"{platform}: box not placed between details and history")
+            errors.append(f"{platform}: box not inside history")
         overlapping = page.evaluate("""() => {
               const box = document.getElementById('issue-merge-requests').getBoundingClientRect();
               return [...document.querySelectorAll('#history *')].filter(el => {
@@ -319,6 +365,37 @@ def reduce_colors(path):
     reduced.save(path, optimize=True)
 
 
+def run_version(version, port, out_dir, chrome_path, failures, lock, theme=None):
+    base = f"http://localhost:{port}"
+    try:
+        print(f"[{version}] starting Redmine on {base}", flush=True)
+        start_container(version, port, theme)
+        wait_for_http(base)
+        issues = seed(version, theme)
+        send_webhooks(base, issues)
+        print(f"[{version}] taking screenshots", flush=True)
+        prefix = out_dir / f"redmine-{version}"
+        if theme:
+            prefix = out_dir / f"redmine-{version}-{theme.name}"
+        with sync_playwright() as playwright:
+            errors = take_screenshots(
+                playwright, base, issues, str(prefix), chrome_path
+            )
+        with lock:
+            failures.extend([f"{version} {error}" for error in errors])
+        for path in sorted(out_dir.glob(f"redmine-{version}_*.png")):
+            reduce_colors(path)
+        if theme:
+            for path in sorted(out_dir.glob(f"redmine-{version}-{theme.name}_*.png")):
+                reduce_colors(path)
+    finally:
+        subprocess.run(
+            ["docker", "rm", "-f", container_name(version, theme)],
+            capture_output=True,
+            check=False,
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -332,33 +409,39 @@ def main():
         "--chrome-path", help="Chromium executable to use instead of the bundled one"
     )
     parser.add_argument("--base-port", type=int, default=3100)
+    parser.add_argument(
+        "--parallel", action="store_true",
+        help="run all versions in parallel instead of sequentially",
+    )
+    parser.add_argument(
+        "--theme", type=pathlib.Path,
+        help="path to a theme directory to mount and select in Redmine",
+    )
     args = parser.parse_args()
 
+    if args.build:
+        for version in args.versions:
+            build_image(version)
+
     failures = []
-    with sync_playwright() as playwright:
+    lock = threading.Lock()
+
+    if args.parallel and len(args.versions) > 1:
+        threads = []
         for index, version in enumerate(args.versions):
             port = args.base_port + index
-            base = f"http://localhost:{port}"
-            if args.build:
-                build_image(version)
-            try:
-                print(f"[{version}] starting Redmine on {base}", flush=True)
-                start_container(version, port)
-                wait_for_http(base)
-                issues = seed(version)
-                send_webhooks(base, issues)
-                print(f"[{version}] taking screenshots", flush=True)
-                prefix = args.out / f"redmine-{version}"
-                errors = take_screenshots(playwright, base, issues, str(prefix), args.chrome_path)
-                failures += [f"{version} {error}" for error in errors]
-                for path in sorted(args.out.glob(f"redmine-{version}_*.png")):
-                    reduce_colors(path)
-            finally:
-                subprocess.run(
-                    ["docker", "rm", "-f", container_name(version)],
-                    capture_output=True,
-                    check=False,
-                )
+            thread = threading.Thread(
+                target=run_version,
+                args=(version, port, args.out, args.chrome_path, failures, lock, args.theme),
+            )
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
+    else:
+        for index, version in enumerate(args.versions):
+            port = args.base_port + index
+            run_version(version, port, args.out, args.chrome_path, failures, lock, args.theme)
 
     if failures:
         print("FAILED:\n  " + "\n  ".join(failures))

@@ -8,7 +8,7 @@ module RedmineMergeRequestLinks
     def render_tabs(tabs, selected = params[:tab])
       return super unless controller_name == 'issues' && action_name == 'show'
 
-      render(partial: 'merge_request_links/box') + super
+      super + render(partial: 'merge_request_links/box')
     end
   end
 end

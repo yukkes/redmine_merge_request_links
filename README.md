@@ -18,6 +18,7 @@ The following platforms are supported:
 * GitHub
 * GitLab
 * Gitea
+* AWS CodeCommit (via EventBridge or Lambda)
 
 
 ## Requirements
@@ -38,13 +39,14 @@ One of the following environment variables need to be set:
 * `REDMINE_MERGE_REQUEST_LINKS_GITLAB_WEBHOOK_TOKEN`
 * `REDMINE_MERGE_REQUEST_LINKS_GITHUB_WEBHOOK_TOKEN`
 * `REDMINE_MERGE_REQUEST_LINKS_GITEA_WEBHOOK_TOKEN`
+* `REDMINE_MERGE_REQUEST_LINKS_CODECOMMIT_WEBHOOK_TOKEN`
 
 If you use systemd set appropriate environment variable:
 
 `https://serverfault.com/a/413408`
 
-They must contain secrets which have to be configured in GitLab/GitHub/Gitea to
-authenticate webhooks.
+They must contain secrets which have to be configured in
+GitLab/GitHub/Gitea/AWS to authenticate webhooks.
 
 Export the environment variable(s) in your bash or webserver config.
 Examples with Phusion Passenger webserver can be found here:
@@ -108,6 +110,53 @@ Create a webhook in GitLab, GitHub or Gitea as described here:
 
 * Click "Add webhook".
 
+### AWS CodeCommit
+
+CodeCommit has no webhooks. Pull request state changes are published
+as `CodeCommit Pull Request State Change` events on EventBridge. There
+are two ways to deliver them to Redmine.
+
+#### Option 1: EventBridge API destination (no code in AWS)
+
+Create an EventBridge rule that invokes an API destination directly:
+
+* Create an EventBridge connection with **API key** authorization.
+  Use `X-CodeCommit-Token` as the API key name and the value of
+  `REDMINE_MERGE_REQUEST_LINKS_CODECOMMIT_WEBHOOK_TOKEN` as the key
+  value. The secret is stored in Secrets Manager by EventBridge.
+
+* Create an API destination pointing to
+  `https://redmine.example.com/merge_requests/event` with the
+  `POST` method and the connection created above.
+
+* Create an EventBridge rule matching the event pattern
+  `{"source": ["aws.codecommit"], "detail-type": ["CodeCommit Pull Request State Change"]}`
+  and use the API destination as target.
+
+* Note: The API destination requires Redmine to be reachable over
+  public HTTPS within 5 seconds. For a Redmine inside a VPC, use the
+  connection's "Private API" option via VPC Lattice, or use the Lambda
+  variant below.
+
+For a step-by-step outline, see
+[`examples/codecommit.md`](examples/codecommit.md).
+
+#### Option 2: EventBridge to Lambda
+
+Invoke a Lambda function in your VPC which relays the event to
+Redmine. The plugin handles the same event payload, so the Lambda only
+needs to POST the raw event JSON with an `X-CodeCommit-Token` header.
+A ready-to-use function is provided in
+[`examples/lambda_codecommit_relay.py`](examples/lambda_codecommit_relay.py).
+
+Configure an EventBridge rule for
+`CodeCommit Pull Request State Change` events with the Lambda
+function as target.
+
+Use this when Redmine is not publicly reachable or when you want to
+restrict Redmine's security group to allow inbound HTTPS only from the
+Lambda's security group.
+
 ### Redmine
 
 To display associated merge requests on issue pages:
@@ -119,7 +168,6 @@ To display associated merge requests on issue pages:
 
 
 ## Usage
-
 Create a merge request and reference a Redmine issue either in the
 form `#123` or `REDMINE-123`. See a link to the merge request appear
 on the issue's Redmine page.

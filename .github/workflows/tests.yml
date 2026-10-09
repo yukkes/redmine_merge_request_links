@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
@@ -32,7 +32,7 @@ jobs:
         redmine-version: ['5.0', '5.1', '6.0', '6.1', '7.0']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build image
         run: bin/build --build-arg "REDMINE_VERSION=$REDMINE_VERSION"
         env:
